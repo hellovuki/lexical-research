@@ -1,3 +1,4 @@
+import invariant from '../../shared/src/invariant';
 import { Klass, KlassConstructor, LexicalEditor } from './LexicalEditor';
 
 type NodeName = string;
@@ -49,4 +50,16 @@ export type DOMConversionMap<T extends HTMLElement = HTMLElement> = Record<
 
 export class LexicalNode {
   ['constructor']!: KlassConstructor<typeof LexicalNode>;
+
+  static getType(): string {
+    invariant(
+      false,
+      'LexicalNode: Node %s does not implement .getType().',
+      this.name
+    );
+  }
+
+  static transform(): ((node: LexicalNode) => void) | null {
+    return null;
+  }
 }

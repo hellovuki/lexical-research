@@ -1,6 +1,7 @@
 import { createEmptyEditorState, EditorState } from './LexicalEditorState';
 import {
   DOMConversionMap,
+  DOMExportOutput,
   DOMExportOutputMap,
   LexicalNode,
 } from './LexicalNode';
@@ -36,6 +37,21 @@ export type LexicalNodeReplacement = {
   ) => LexicalNode;
   withKlass?: Klass<LexicalNode>;
 };
+
+export type Transform<T extends LexicalNode> = (node: T) => void;
+
+export type RegisteredNode = {
+  klass: Klass<LexicalNode>;
+  transforms: Set<Transform<LexicalNode>>;
+  replace: null | ((node: LexicalNode) => LexicalNode);
+  replaceWithKlass: null | Klass<LexicalNode>;
+  exportDOM?: (
+    editor: LexicalEditor,
+    targetNode: LexicalNode
+  ) => DOMExportOutput;
+};
+
+export type RegisteredNodes = Map<string, RegisteredNode>;
 
 export type ErrorHandler = (error: Error) => void;
 
@@ -82,6 +98,39 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
 
   const { onError, html } = config;
   const isEditable = config.editable !== undefined ? config.editable : true;
+  let registeredNodes: Map<string, RegisteredNode>;
+
+  if (editorConfig === undefined && activeEditor !== null) {
+    registeredNodes = activeEditor._nodes;
+  } else {
+    registeredNodes = new Map();
+    for (let i = 0; i < nodes.length; i++) {
+      let klass = nodes[i];
+      let replace: RegisteredNode['replace'] = null;
+      let replaceWithKlass: RegisteredNode['replaceWithKlass'] = null;
+
+      if (typeof klass !== 'function') {
+        const options = klass;
+        klass = options.replace;
+        replace = options.with;
+        replaceWithKlass = options.withKlass || null;
+      }
+
+      const type = klass.getType();
+      const transform = klass.transform();
+      const transforms = new Set<Transform<LexicalNode>>();
+      if (transform !== null) {
+        transforms.add(transform);
+      }
+      registeredNodes.set(type, {
+        exportDOM: html && html.export ? html.export.get(klass) : undefined,
+        klass,
+        replace,
+        replaceWithKlass,
+        transforms,
+      });
+    }
+  }
 
   // TODO: Continue here
 
@@ -97,5 +146,6 @@ export type EditorConfig = {
 };
 
 export class LexicalEditor {
+  _nodes: RegisteredNodes;
   _config: EditorConfig;
 }
